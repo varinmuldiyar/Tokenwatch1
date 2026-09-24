@@ -81,6 +81,9 @@ body{background:var(--bg);color:var(--t1);font-family:var(--sans)}
 .s-cd{background:#1a2236;color:#7EB8F7;border:1px solid #2A4A7A}
 .s-ct{background:#1a1a24;color:#A78BFA;border:1px solid #4A3A7A}
 .s-dc{background:#1a2218;color:#6ED89A;border:1px solid #2A6A40}
+.s-tb{background:#1a1f2e;color:#60A5FA;border:1px solid #1E40AF}
+.s-bc{background:#1f1a2e;color:#C084FC;border:1px solid #7C3AED}
+.s-bw{background:#2e1a1a;color:#FCA5A5;border:1px solid #DC2626}
 .nage{font-size:10px;color:var(--t3);font-family:var(--mono)}
 .ntitle{font-size:13px;color:var(--t2);line-height:1.45}
 .ntitle a{color:inherit;text-decoration:none}
@@ -156,6 +159,9 @@ const FEEDS = [
   {n:'CoinDesk',      cls:'s-cd', url:'https://www.coindesk.com/arc/outboundfeeds/rss/'},
   {n:'CoinTelegraph', cls:'s-ct', url:'https://cointelegraph.com/rss'},
   {n:'Decrypt',       cls:'s-dc', url:'https://decrypt.co/feed'},
+  {n:'The Block',     cls:'s-tb', url:'https://www.theblock.co/rss.xml'},
+  {n:'BeInCrypto',   cls:'s-bc', url:'https://beincrypto.com/feed/'},
+  {n:'Blockworks',   cls:'s-bw', url:'https://blockworks.co/feed'},
 ];
 
 // Very broad keywords — single word matches, no spaces required
@@ -269,7 +275,7 @@ async function go(){
     setPb(10+Math.round((i/FEEDS.length)*70));
     try{
       const res=await fetch(`${FN}?url=${encodeURIComponent(feed.url)}`,{
-        signal:AbortSignal.timeout(15000)
+        signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 15000); return c.signal; })()
       });
       if(res.ok){
         const j=await res.json();
