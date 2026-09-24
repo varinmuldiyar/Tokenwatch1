@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<!-- PWA meta -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TokenWatch">
+<meta name="theme-color" content="#0D0F12">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+
+<title>TokenWatch</title>
+
+<style>
+/* ─── Reset & tokens ───────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+
+:root{
+  --bg:#0D0F12; --s1:#141820; --s2:#1C2230; --s3:#232D40;
+  --border:#252D3D; --border2:#2E3A50;
+  --cyan:#00D4FF; --cyan-d:rgba(0,212,255,.12); --cyan-b:rgba(0,212,255,.25);
+  --green:#00C896; --green-d:rgba(0,200,150,.12);
+  --amber:#FFB800; --amber-d:rgba(255,184,0,.12);
+  --red:#FF4D4D;   --red-d:rgba(255,77,77,.12);
+  --purple:#A78BFA; --purple-d:rgba(167,139,250,.12);
+  --t1:#E8EDF5; --t2:#8A9BB5; --t3:#4A5A72;
+  --mono:'SF Mono','Courier New',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bot:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
+}
+
+body{
+  background:var(--bg);
+  color:var(--t1);
+  font-family:var(--sans);
+  display:flex;
+  flex-direction:column;
+  padding-top:var(--safe-top);
+}
+
+/* ─── Status bar spacer (fills notch area) ─────────── */
+.status-bar{
+  background:var(--s1);
+  height:var(--safe-top);
+  position:fixed;top:0;left:0;right:0;
+  z-index:200;
+}
+
+/* ─── Top bar ───────────────────────────────────────── */
+.topbar{
+  background:var(--s1);
+  border-bottom:0.5px solid var(--border);
+  padding:12px 16px 10px;
+  display:flex;align-items:center;gap:10px;
+  position:fixed;
+  top:var(--safe-top);
+  left:0;right:0;
+  z-index:100;
+  padding-left:calc(16px + var(--safe-l));
+  padding-right:calc(16px + var(--safe-r));
+}
+.topbar-logo{
+  width:30px;height:30px;
+  border-radius:8px;
+  background:var(--cyan-d);
+  border:1px solid var(--cyan-b);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:11px;font-weight:700;color:var(--cyan);
+  flex-shrink:0;
+}
+.topbar-title{font-size:15px;font-weight:600;color:var(--t1);flex:1;letter-spacing:-.01em}
+.topbar-sub{font-size:11px;color:var(--t3);font-family:var(--mono);margin-top:1px}
+.topbar-info{text-align:right;flex-shrink:0}
+.topbar-time{font-size:11px;color:var(--t3);font-family:var(--mono)}
+.topbar-status{font-size:10px;margin-top:2px;font-family:var(--mono)}
+.topbar-status.live{color:var(--green)}
+.topbar-status.stale{color:var(--amber)}
+
+/* refresh FAB */
+.fab{
+  position:fixed;
+  bottom:calc(20px + var(--safe-bot));
+  right:calc(20px + var(--safe-r));
+  z-index:150;
+  width:52px;height:52px;
+  border-radius:50%;
+  background:var(--cyan);
+  border:none;color:#0D0F12;
+  font-size:22px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 20px rgba(0,212,255,.35);
+  cursor:pointer;
+  transition:transform .15s,opacity .15s;
+}
+.fab:active{transform:scale(.93)}
+.fab:disabled{opacity:.45}
+.fab .spin{animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── Progress bar ──────────────────────────────────── */
+.progress{
+  position:fixed;
+  top:calc(var(--safe-top) + 52px);
+  left:0;right:0;height:2px;
+  background:transparent;z-index:101;
+}
+.progress-fill{height:100%;background:var(--cyan);width:0%;transition:width .4s ease}
+
+/* ─── Alert strip ───────────────────────────────────── */
+.alert-strip{
+  position:fixed;
+  top:calc(var(--safe-top) + 52px);
+  left:0;right:0;
+  background:var(--s1);
+  border-bottom:0.5px solid var(--border);
+  padding:7px 16px;
+  display:flex;gap:6px;align-items:center;
+  overflow-x:auto;
+  scrollbar-width:none;
+  z-index:99;
+  padding-left:calc(16px + var(--safe-l));
+}
+.alert-strip::-webkit-scrollbar{display:none}
+.strip-lbl{font-size:10px;font-family:var(--mono);color:var(--t3);letter-spacing:.07em;text-transform:uppercase;flex-shrink:0;margin-right:2px}
+.strip-chip{font-size:11px;font-weight:600;font-family:var(--mono);padding:3px 9px;border-radius:100px;border:1px solid;white-space:nowrap;flex-shrink:0}
+.chip-red{background:var(--red-d);border-color:var(--red);color:var(--red)}
+.chip-amber{background:var(--amber-d);border-color:var(--amber);color:var(--amber)}
+.chip-green{background:var(--green-d);border-color:var(--green);color:var(--green)}
+.chip-purple{background:var(--purple-d);border-color:var(--purple);color:var(--purple)}
+.chip-empty{font-size:11px;color:var(--t3);font-family:var(--mono);font-style:italic}
+
+/* ─── Scroll container ──────────────────────────────── */
+.scroll-container{
+  position:fixed;
+  top:calc(var(--safe-top) + 52px + 2px + 34px);
+  bottom:0;
+  left:0;right:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  padding:12px 14px calc(88px + var(--safe-bot));
+  padding-left:calc(14px + var(--safe-l));
+  padding-right:calc(14px + var(--safe-r));
+}
+
+/* ─── Token cards ───────────────────────────────────── */
+.card{
+  background:var(--s1);
+  border:0.5px solid var(--border);
+  border-radius:14px;
+  margin-bottom:10px;
+  overflow:hidden;
+  transition:border-color .2s;
+}
+.card.active-alerts{border-color:var(--border2)}
+
+.card-head{
+  padding:11px 13px 9px;
+  display:flex;align-items:center;gap:10px;
+  border-bottom:0.5px solid var(--border);
+}
+.tok-logo{
+  width:36px;height:36px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  border:1.5px solid;flex-shrink:0;
+}
+.tok-meta{flex:1;min-width:0}
+.tok-sym{font-size:14px;font-weight:600;color:var(--t1)}
+.tok-name{font-size:11px;color:var(--t3);font-family:var(--mono);margin-top:1px}
+
+/* Signal strength bars */
+.bars{display:flex;gap:2px;align-items:flex-end;height:16px}
+.b{width:4px;border-radius:1px;background:var(--border);transition:background .3s}
+.b:nth-child(1){height:5px}
+.b:nth-child(2){height:8px}
+.b:nth-child(3){height:11px}
+.b:nth-child(4){height:14px}
+.b:nth-child(5){height:16px}
+.b.red{background:var(--red)}
+.b.amber{background:var(--amber)}
+.b.green{background:var(--green)}
+.b.cyan{background:var(--cyan)}
+
+.card-body{padding:10px 13px}
+.alert-row{display:flex;gap:7px;align-items:flex-start;margin-bottom:8px}
+.alert-row:last-child{margin-bottom:0}
+.atag{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  padding:2px 5px;border-radius:3px;border:1px solid;
+  flex-shrink:0;margin-top:1px;letter-spacing:.04em;white-space:nowrap;
+}
+.atag.price{background:var(--red-d);color:var(--red);border-color:var(--red)}
+.atag.ann{background:var(--cyan-d);color:var(--cyan);border-color:var(--cyan)}
+.atag.reg{background:var(--purple-d);color:var(--purple);border-color:var(--purple)}
+.atag.unlock{background:var(--amber-d);color:var(--amber);border-color:var(--amber)}
+.atag.threat{background:var(--red-d);color:var(--red);border-color:var(--red)}
+.atag.pos{background:var(--green-d);color:var(--green);border-color:var(--green)}
+.atext{font-size:13px;color:var(--t2);line-height:1.5;flex:1}
+
+.empty-state{font-size:12px;color:var(--t3);font-family:var(--mono);padding:4px 0;font-style:italic}
+.loading-state{
+  font-size:12px;color:var(--t3);font-family:var(--mono);
+  padding:4px 0;
+  animation:pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+/* ─── Install banner (shown if not standalone) ──────── */
+.install-banner{
+  position:fixed;bottom:calc(80px + var(--safe-bot));
+  left:calc(14px + var(--safe-l));
+  right:calc(14px + var(--safe-r));
+  background:var(--s2);
+  border:1px solid var(--cyan-b);
+  border-radius:12px;padding:12px 14px;
+  z-index:120;
+  display:none;
+}
+.install-banner.show{display:block}
+.install-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:4px}
+.install-steps{font-size:12px;color:var(--t2);line-height:1.7}
+.install-steps strong{color:var(--cyan)}
+.install-close{
+  position:absolute;top:10px;right:12px;
+  background:none;border:none;color:var(--t3);
+  font-size:18px;cursor:pointer;padding:0;line-height:1;
+}
+</style>
+</head>
+<body>
+
+<div class="status-bar"></div>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-logo">TW</div>
+  <div>
+    <div class="topbar-title">TokenWatch</div>
+    <div class="topbar-sub">9 tokens · live</div>
+  </div>
+  <div class="topbar-info">
+    <div class="topbar-time" id="ts">—</div>
+    <div class="topbar-status" id="status-lbl">Loading...</div>
+  </div>
+</div>
+
+<!-- Loading bar sits just below topbar -->
+<div class="progress"><div class="progress-fill" id="pbar"></div></div>
+
+<!-- Alert strip -->
+<div class="alert-strip" id="strip">
+  <span class="strip-lbl">Alerts</span>
+  <span class="chip-empty">Fetching...</span>
+</div>
+
+<!-- Card list -->
+<div class="scroll-container" id="card-list"></div>
+
+<!-- FAB refresh -->
+<button class="fab" id="fab" onclick="runMonitor(true)" title="Refresh">
+  <span id="fab-icon">↻</span>
+</button>
+
+<!-- Install instructions banner (Safari/iOS) -->
+<div class="install-banner" id="install-banner">
+  <button class="install-close" onclick="document.getElementById('install-banner').classList.remove('show')">×</button>
+  <div class="install-title">Add to Home Screen</div>
+  <div class="install-steps">
+    Tap <strong>Share ↑</strong> in Safari → <strong>Add to Home Screen</strong><br>
+    TokenWatch opens as a full-screen app, no browser bar.
+  </div>
+</div>
+
+<script>
+// ─── Token definitions ──────────────────────────────────────────────────
+const TOKENS = [
+  { sym:'ETH',  name:'Ethereum',     color:'#627EEA', bg:'#627EEA22',
+    q:'Ethereum ETH price upgrade Glamsterdam staking ETF BlackRock institutional DeFi week' },
+  { sym:'SOL',  name:'Solana',       color:'#9945FF', bg:'#9945FF22',
+    q:'Solana SOL price Firedancer Alpenglow ETF DeFi TVL stablecoin week' },
+  { sym:'HYPE', name:'Hyperliquid',  color:'#00A88F', bg:'#00C2A822',
+    q:'Hyperliquid HYPE token price unlock volume revenue HIP FCA week' },
+  { sym:'LINK', name:'Chainlink',    color:'#375BD2', bg:'#375BD222',
+    q:'Chainlink LINK CCIP oracle price Swift RWA ACE staking week' },
+  { sym:'TRX',  name:'Tron',         color:'#CC0000', bg:'#FF060622',
+    q:'Tron TRX Justin Sun SEC USDT stablecoin price revenue week' },
+  { sym:'NEAR', name:'NEAR Protocol',color:'#00B572', bg:'#00EC9722',
+    q:'NEAR Protocol token price ETF Grayscale Confidential Intents AI privacy week' },
+  { sym:'ZRO',  name:'LayerZero',    color:'#7B61FF', bg:'#7B61FF22',
+    q:'LayerZero ZRO price ATLAS Zero L1 ARK Invest Otter AMM unlock week' },
+  { sym:'TAO',  name:'Bittensor',    color:'#7ecfff', bg:'#1C2A3A',
+    q:'Bittensor TAO price subnet halving Grayscale dTAO AI week' },
+  { sym:'ZEC',  name:'Zcash',        color:'#C99A00', bg:'#F4B72822',
+    q:'Zcash ZEC price ZCSH ETF Grayscale shielded privacy Orchard adoption week' },
+];
+
+// ─── Cache helpers ──────────────────────────────────────────────────────
+const CACHE_KEY = 'tw_v4';
+
+function todayKey(){
+  return new Date().toISOString().slice(0,10); // "2026-09-24"
+}
+function saveCache(data){
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({date:todayKey(), data})); }catch(e){}
+}
+function loadCache(){
+  try{
+    const r = JSON.parse(localStorage.getItem(CACHE_KEY)||'null');
+    if(r && r.date === todayKey()) return r.data;
+  }catch(e){}
+  return null;
+}
+
+// ─── Render helpers ─────────────────────────────────────────────────────
+function buildCards(){
+  const list = document.getElementById('card-list');
+  list.innerHTML = '';
+  TOKENS.forEach(t => {
+    list.innerHTML += `
+    <div class="card" id="c-${t.sym}">
+      <div class="card-head">
+        <div class="tok-logo" style="color:${t.color};background:${t.bg};border-color:${t.color}">${t.sym}</div>
+        <div class="tok-meta">
+          <div class="tok-sym">${t.sym}</div>
+          <div class="tok-name">${t.name}</div>
+        </div>
+        <div class="bars" id="bars-${t.sym}">
+          ${[1,2,3,4,5].map(i=>`<div class="b" id="b-${t.sym}-${i}"></div>`).join('')}
+        </div>
+      </div>
+      <div class="card-body" id="body-${t.sym}">
+        <div class="loading-state">Searching for latest news…</div>
+      </div>
+    </div>`;
+  });
+}
+
+function paintCard(sym, data){
+  const body = document.getElementById(`body-${sym}`);
+  const card = document.getElementById(`c-${sym}`);
+  const alerts = data.alerts || [];
+
+  if(!alerts.length){
+    body.innerHTML = `<div class="empty-state">No major alerts this week</div>`;
+    return;
+  }
+
+  card.classList.add('active-alerts');
+
+  // signal bars
+  const n = Math.min(alerts.length, 5);
+  const colMap = {price:'red', ann:'cyan', reg:'cyan', unlock:'amber', threat:'red', pos:'green'};
+  for(let i=1;i<=5;i++){
+    const el = document.getElementById(`b-${sym}-${i}`);
+    if(el) el.className = `b${i<=n ? ' '+( colMap[alerts[i-1]?.type]||'cyan' ) : ''}`;
+  }
+
+  const lm = {price:'PRICE', ann:'ANN', reg:'REG', unlock:'UNLOCK', threat:'THREAT', pos:'POS'};
+  body.innerHTML = alerts.map(a=>
+    `<div class="alert-row">
+       <span class="atag ${a.type||'ann'}">${lm[a.type]||'ANN'}</span>
+       <span class="atext">${a.text||''}</span>
+     </div>`
+  ).join('');
+}
+
+function paintStrip(all){
+  const strip = document.getElementById('strip');
+  const red=[], amber=[], green=[], purple=[];
+  all.forEach(({sym, data})=>{
+    (data.alerts||[]).forEach(a=>{
+      if(a.type==='price'||a.type==='threat') red.push(sym);
+      else if(a.type==='unlock') amber.push(sym);
+      else if(a.type==='reg') purple.push(sym);
+      else green.push(sym);
+    });
+  });
+  const u = arr=>[...new Set(arr)];
+  const r=u(red), a=u(amber), g=u(green), p=u(purple);
+  let h = '<span class="strip-lbl">Week</span>';
+  if(r.length) h+=`<span class="strip-chip chip-red">⚠ ${r.join(' · ')}</span>`;
+  if(p.length) h+=`<span class="strip-chip chip-purple">⚖ ${p.join(' · ')}</span>`;
+  if(a.length) h+=`<span class="strip-chip chip-amber">🔓 ${a.join(' · ')}</span>`;
+  if(g.length) h+=`<span class="strip-chip chip-green">✦ ${g.join(' · ')}</span>`;
+  if(!r.length&&!a.length&&!g.length&&!p.length) h+=`<span class="chip-empty">No major alerts</span>`;
+  strip.innerHTML = h;
+}
+
+function setStatus(text, cls){
+  const el = document.getElementById('status-lbl');
+  el.textContent = text;
+  el.className = `topbar-status ${cls||''}`;
+}
+
+function setTs(text){ document.getElementById('ts').textContent = text; }
+
+// ─── API ────────────────────────────────────────────────────────────────
+async function fetchToken(token){
+  const today = new Date().toISOString().slice(0,10);
+  const prompt =
+`You are a crypto analyst. Today: ${today}.
+Search the web for news published in the LAST 7 DAYS about ${token.sym} (${token.name}).
+Search terms: "${token.q}"
+
+Return ONLY JSON — no markdown, no backticks:
+{"alerts":[{"type":"ann","text":"One factual sentence under 25 words. [Source]"}]}
+
+Rules:
+- type: price | ann | reg | unlock | threat | pos
+- price = move >10% in 7 days
+- ann = protocol launch / upgrade / partnership
+- reg = regulatory or legal action
+- unlock = token unlock event
+- threat = exploit / client migration / competitive loss
+- pos = other positive development
+- Max 4 alerts. Last 7 days only. Empty array if nothing significant.`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-6',
+      max_tokens:800,
+      tools:[{type:'web_search_20250305',name:'web_search'}],
+      messages:[{role:'user',content:prompt}]
+    })
+  });
+  const d = await res.json();
+  const txt = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  try{
+    const s=txt.indexOf('{'), e=txt.lastIndexOf('}');
+    if(s>=0&&e>s) return JSON.parse(txt.slice(s,e+1));
+  }catch(_){}
+  return {alerts:[]};
+}
+
+// ─── Main run ───────────────────────────────────────────────────────────
+let running = false;
+
+async function runMonitor(force=false){
+  if(running) return;
+  running = true;
+
+  const fab  = document.getElementById('fab');
+  const icon = document.getElementById('fab-icon');
+  const pbar = document.getElementById('pbar');
+
+  fab.disabled = true;
+  icon.innerHTML = '<span class="spin">↻</span>';
+
+  buildCards();
+  setStatus('Searching…', '');
+
+  const results = [];
+  const cache   = {};
+
+  for(let i=0;i<TOKENS.length;i++){
+    const t = TOKENS[i];
+    pbar.style.width = `${Math.round(i/TOKENS.length*100)}%`;
+    try{
+      const data = await fetchToken(t);
+      paintCard(t.sym, data);
+      results.push({sym:t.sym, data});
+      cache[t.sym] = data;
+    }catch(e){
+      document.getElementById(`body-${t.sym}`).innerHTML =
+        `<div class="empty-state">Network error — tap ↻ to retry</div>`;
+      results.push({sym:t.sym, data:{alerts:[]}});
+    }
+    pbar.style.width = `${Math.round((i+1)/TOKENS.length*100)}%`;
+  }
+
+  paintStrip(results);
+  saveCache(cache);
+
+  const now = new Date();
+  setTs(now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}));
+  setStatus('Live ✓','live');
+
+  fab.disabled = false;
+  icon.textContent = '↻';
+  running = false;
+
+  setTimeout(()=>{ pbar.style.width='0%'; },1200);
+}
+
+function renderCached(data){
+  buildCards();
+  const results=[];
+  TOKENS.forEach(t=>{
+    const d = data[t.sym]||{alerts:[]};
+    paintCard(t.sym,d);
+    results.push({sym:t.sym,data:d});
+  });
+  paintStrip(results);
+  const now=new Date();
+  setTs(now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}));
+  setStatus('Cached today ·  tap ↻','stale');
+}
+
+// ─── Boot ────────────────────────────────────────────────────────────────
+window.addEventListener('load', ()=>{
+
+  // Service worker registration
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  }
+
+  // Show "Add to Home Screen" banner if running in browser (not standalone)
+  const isStandalone = window.navigator.standalone ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  if(!isStandalone){
+    // Show after 2s so it doesn't interfere with loading
+    setTimeout(()=>{
+      document.getElementById('install-banner').classList.add('show');
+    }, 2000);
+  }
+
+  // Load cache or auto-fetch
+  const cached = loadCache();
+  if(cached){
+    renderCached(cached);
+  } else {
+    runMonitor();
+  }
+});
+</script>
+</body>
+</html>
